@@ -1,7 +1,7 @@
 {
   "name": "SKCheck",
   "short_name": "SKCheck",
-  "start_url": "/SKcheck-primary/index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
