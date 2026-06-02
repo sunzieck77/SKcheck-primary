@@ -1,0 +1,16 @@
+{
+  "name": "SKCheck",
+  "short_name": "SKCheck",
+  "start_url": "/SKCheck_Primary/index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1fb0ff",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

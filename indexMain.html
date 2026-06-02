@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SK Check - ระบบเช็กชื่อโรงเรียนสกลวิทยา</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#E60050',
+                        'primary-light': '#ff1a6b',
+                        'primary-dark': '#b3003e',
+                        'success': '#22c55e'
+                    },
+                    animation: {
+                        'shining': 'shining 2s infinite',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        shining: {
+                            '0%': { transform: 'translateX(-150%) skewX(-25deg)' },
+                            '100%': { transform: 'translateX(150%) skewX(-25deg)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Remix Icon -->
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.9.0/fonts/remixicon.css" rel="stylesheet" />
+    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { 
+            font-family: 'Sarabun', sans-serif; 
+            background-color: #f3f4f6; 
+            -webkit-tap-highlight-color: transparent; 
+            overflow-x: hidden;
+        }
+
+        /* Hide Scrollbar */
+        *::-webkit-scrollbar {
+            display: none !important;
+        }
+
+        * {
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
+        }
+
+        .glass-nav { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); }
+        .modal-overlay { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(6px); }
+        .animate-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .content-area { 
+            padding-bottom: 120px; 
+            min-height: 100vh;
+        }
+        
+        .logo-container {
+            position: relative;
+            overflow: hidden;
+            border-radius: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .shining-effect {
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(
+                to right,
+                rgba(255, 255, 255, 0) 0%,
+                rgba(255, 255, 255, 0.6) 50%,
+                rgba(255, 255, 255, 0) 100%
+            );
+            transform: skewX(-25deg);
+            animation: shining 2s infinite;
+        }
+
+        @keyframes shining {
+            0% { left: -150%; }
+            100% { left: 150%; }
+        }
+
+        .splash-gradient {
+            background: linear-gradient(135deg, #E60050 0%, #b3003e 100%);
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getDatabase, ref, set, push, onValue, get, update, remove } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import * as XLSX from "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/+esm";
+
+        // Assign to window to make it accessible inside the Babel script
+        window.XLSX = XLSX;
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBygKmGp-piqNQrWtA9lrPBAxayvYmZmUk",
+            authDomain: "skclasscheck.firebaseapp.com",
+            databaseURL: "https://skclasscheck-default-rtdb.firebaseio.com",
+            projectId: "skclasscheck",
+            storageBucket: "skclasscheck.firebasestorage.app",
+            messagingSenderId: "828575453235",
+            appId: "1:828575453235:web:bd001ac3222f7dc9905346"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const auth = getAuth(app);
+
+        window.FirebaseServices = { 
+            db, 
+            auth, 
+            functions: { 
+                signInAnonymously, 
+                onAuthStateChanged, 
+                ref, 
+                set, 
+                push, 
+                onValue, 
+                get, 
+                update, 
+                remove 
+            } 
+        };
+        window.dispatchEvent(new Event('firebase-ready'));
+    </script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useCallback } = React;
+
+        const SCHOOL_LOGO = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSALx--APIlNcrPDzl7sIWS_1Pv_ThBQ2ooQg&s";
+        const HEADER_BG = "https://i.ibb.co/mCGCGrbp/Sakolwittaya-Design.jpg";
+
+        const getLocalDateString = () => {
+            const d = new Date();
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        const formatDisplayDate = (ymdString, options) => {
+            if (!ymdString) return '';
+            const [y, m, d] = ymdString.split('-');
+            return new Date(y, m - 1, d).toLocaleDateString('th-TH', options || { day: 'numeric', month: 'short', year: 'numeric' });
+        };
+
+        const Icons = {
+            Home: () => <i className="ri-home-4-line text-[22px]"></i>,
+            Attendance: () => <i className="ri-survey-line text-[22px]"></i>,
+            Report: () => <i className="ri-bar-chart-line text-[22px]"></i>,
+            Settings: () => <i className="ri-settings-3-line text-[22px]"></i>,
+            Check: () => <i className="ri-checkbox-circle-line text-[22px]"></i>,
+            Trash: () => <i className="ri-delete-bin-line text-[18px]"></i>,
+            Save: () => <i className="ri-save-line text-[20px]"></i>,
+            Calendar: () => <i className="ri-calendar-2-line text-[18px]"></i>,
+            Plus: () => <i className="ri-add-line text-[22px]"></i>,
+            Back: () => <i className="ri-arrow-left-s-line text-[24px]"></i>,
+            FileExcel: () => <i className="ri-file-excel-2-line text-[18px]"></i>,
+            Loader: () => <i className="ri-loader-4-line animate-spin text-[24px]"></i>,
+            Close: () => <i className="ri-close-line text-[24px]"></i>,
+            SettingsGear: () => <i className="ri-settings-4-line text-[20px]"></i>,
+            UserGroup: () => <i className="ri-group-line text-[18px]"></i>,
+            Clipboard: () => <i className="ri-clipboard-line text-[20px]"></i>,
+            Vip: () => <i className="ri-vip-crown-line text-[20px]"></i>,
+            Lock: () => <i className="ri-lock-line text-[20px]"></i>,
+            ToggleOn: () => <i className="ri-toggle-fill text-[24px] text-green-500"></i>,
+            ToggleOff: () => <i className="ri-toggle-line text-[24px] text-gray-300"></i>,
+            ArrowDown: () => <i className="ri-arrow-down-s-line text-[20px]"></i>,
+            ArrowUp: () => <i className="ri-arrow-up-s-line text-[20px]"></i>
+        };
+
+        const STATUS_MAP = {
+            p: { label: 'มา', color: 'bg-green-500', light: 'bg-green-50', text: 'text-green-600' },
+            l: { label: 'สาย', color: 'bg-orange-500', light: 'bg-orange-50', text: 'text-orange-600' },
+            a: { label: 'ขาด', color: 'bg-red-500', light: 'bg-red-50', text: 'text-red-600' },
+            s: { label: 'ลาป่วย', color: 'bg-blue-500', light: 'bg-blue-50', text: 'text-blue-600' },
+            b: { label: 'ลากิจ', color: 'bg-purple-500', light: 'bg-purple-50', text: 'text-purple-600' }
+        };
+
+        const ClassDetailModal = ({ classId, className, date, onClose, premiumStatus }) => {
+            const [data, setData] = useState({ students: [], attendance: {} });
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                const fetchDetails = async () => {
+                    if (!window.FirebaseServices) return;
+                    setLoading(true);
+                    try {
+                        const { db, functions } = window.FirebaseServices;
+                        const [stdSnap, attSnap] = await Promise.all([
+                            functions.get(functions.ref(db, `students/${classId}`)),
+                            functions.get(functions.ref(db, `attendance/${classId}/${date}`))
+                        ]);
+                        
+                        const stdData = stdSnap.val() || {};
+                        const attData = attSnap.val() || {};
+                        
+                        setData({
+                            students: Object.entries(stdData).map(([id, s]) => ({ id, ...s })).sort((a, b) => a.no - b.no),
+                            attendance: attData
+                        });
+                    } catch (e) {
+                        console.error(e);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+                fetchDetails();
+            }, [classId, date]);
+
+            const copyReportToClipboard = () => {
+                if (!premiumStatus) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'สิทธิ์ Premium เท่านั้น',
+                        text: 'ห้องนี้ยังไม่ได้รับสิทธิ์ในการคัดลอกรายงาน กรุณาติดต่อผู้ดูแลระบบ',
+                        confirmButtonColor: '#E60050'
+                    });
+                    return;
+                }
+
+                const formattedDate = formatDisplayDate(date);
+                const students = data.students;
+                const attendance = data.attendance;
+
+                const presentStudents = students.filter(s => {
+                    let val = attendance[s.id];
+                    let k = typeof val === 'object' ? val.status : val;
+                    return k === 'p' || k === 'l';
+                });
+                const malesPresent = presentStudents.filter(s => s.gender === 'ชาย' || s.gender === 'm').length;
+                const femalesPresent = presentStudents.filter(s => s.gender === 'หญิง' || s.gender === 'f').length;
+
+                const sickStudents = students.filter(s => {
+                    let val = attendance[s.id];
+                    return (typeof val === 'object' ? val.status : val) === 's';
+                });
+                const businessStudents = students.filter(s => {
+                    let val = attendance[s.id];
+                    return (typeof val === 'object' ? val.status : val) === 'b';
+                });
+                const absentStudents = students.filter(s => {
+                    let val = attendance[s.id];
+                    return (typeof val === 'object' ? val.status : val) === 'a';
+                });
+
+                let reportText = `วันที่ ${formattedDate}\n`;
+                reportText += `ระดับชั้น ${className}\n`;
+                reportText += `นักเรียนทั้งหมด ${students.length} คน\n`;
+                reportText += `มาทั้งหมด ${presentStudents.length} คน\n`;
+                reportText += `ชายมา ${malesPresent}\n`;
+                reportText += `หญิงมา ${femalesPresent}\n\n`;
+
+                if (sickStudents.length > 0) {
+                    reportText += `ลาป่วย ${sickStudents.length} คน\n`;
+                    sickStudents.forEach(s => {
+                        let val = attendance[s.id];
+                        let remark = typeof val === 'object' && val.remark ? ` (${val.remark})` : '';
+                        reportText += `- ${s.name}${remark}\n`;
+                    });
+                }
+
+                if (businessStudents.length > 0) {
+                    reportText += `${sickStudents.length > 0 ? '\n' : ''}ลากิจ ${businessStudents.length} คน\n`;
+                    businessStudents.forEach(s => {
+                        let val = attendance[s.id];
+                        let remark = typeof val === 'object' && val.remark ? ` (${val.remark})` : '';
+                        reportText += `- ${s.name}${remark}\n`;
+                    });
+                }
+
+                if (absentStudents.length > 0) {
+                    reportText += `${(sickStudents.length > 0 || businessStudents.length > 0) ? '\n' : ''}ขาด ${absentStudents.length} คน\n`;
+                    absentStudents.forEach(s => {
+                        let val = attendance[s.id];
+                        let remark = typeof val === 'object' && val.remark ? ` (${val.remark})` : '';
+                        reportText += `- ${s.name}${remark}\n`;
+                    });
+                }
+
+                const textArea = document.createElement("textarea");
+                textArea.value = reportText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'คัดลอกรายงานแล้ว',
+                    timer: 1000,
+                    showConfirmButton: false,
+                    toast: true,
+                    position: 'top-end'
+                });
+            };
+
+            return (
+                <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6 modal-overlay" onClick={onClose}>
+                    <div className="bg-white w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] h-[85vh] sm:h-auto sm:max-h-[85vh] flex flex-col animate-in overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-800">สรุปข้อมูล {className}</h3>
+                                <p className="text-xs text-gray-400">วันที่ {formatDisplayDate(date)}</p>
+                            </div>
+                            <button onClick={onClose} className="p-2 bg-white rounded-full shadow-sm text-gray-400"><Icons.Close /></button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {loading ? (
+                                <div className="flex justify-center items-center h-full py-20 text-primary">
+                                    <Icons.Loader />
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="mb-6 flex items-center justify-between bg-white border border-gray-100 p-4 rounded-3xl">
+                                        <div className="text-sm font-bold text-gray-500">นักเรียนทั้งหมด</div>
+                                        <div className="text-lg font-black text-primary">{data.students.length} <span className="text-xs font-normal text-gray-400">คน</span></div>
+                                    </div>
+
+                                    <div className="grid grid-cols-5 gap-2 mb-6">
+                                        {Object.entries(STATUS_MAP).map(([key, val]) => {
+                                            const count = Object.values(data.attendance).filter(v => (typeof v === 'object' ? v.status : v) === key).length;
+                                            return (
+                                                <div key={key} className={`${val.light} p-2 rounded-2xl text-center`}>
+                                                    <div className={`${val.text} font-black text-lg`}>{count}</div>
+                                                    <div className={`${val.text} text-[12px] font-bold`}>{val.label}</div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        {data.students.map((s) => {
+                                            let attVal = data.attendance[s.id];
+                                            let statusKey = typeof attVal === 'object' ? attVal.status : attVal;
+                                            let remark = typeof attVal === 'object' ? attVal.remark : '';
+                                            const status = STATUS_MAP[statusKey];
+                                            return (
+                                                <div key={s.id} className="flex flex-col p-3 bg-gray-50 rounded-2xl border border-white mb-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-[10px] font-bold text-gray-300 w-4">{s.no}</span>
+                                                            <span className="text-sm font-medium text-gray-700">
+                                                                {s.name} {s.nickname && <span className="text-gray-400 font-normal">({s.nickname})</span>}
+                                                            </span>
+                                                        </div>
+                                                        {status && (
+                                                            <div className={`${status.color} text-white text-[9px] font-bold px-3 py-1 rounded-full shadow-sm`}>
+                                                                {status.label}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {remark && <div className="mt-2 text-[10px] text-gray-500 bg-white p-2 rounded-lg ml-7 border border-gray-100 overflow-x-auto whitespace-nowrap max-w-full">หมายเหตุ: {remark}</div>}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        <div className="p-6 bg-white border-t border-gray-50">
+                            <button 
+                                onClick={copyReportToClipboard} 
+                                className={`w-full py-4 text-white rounded-3xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform ${premiumStatus ? 'bg-primary' : 'bg-gray-400'}`}
+                            >
+                                {premiumStatus ? <Icons.Clipboard /> : <Icons.Lock />} คัดลอกรายงาน
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const HomeView = ({ classes, today }) => {
+            const levels = ["ม.1", "ม.2", "ม.3", "ม.4", "ม.5", "ม.6"];
+            const [selectedClass, setSelectedClass] = useState(null);
+            const [statusMap, setStatusMap] = useState({});
+            const [schoolSummary, setSchoolSummary] = useState({ total: 0, checked: 0, counts: { p: 0, l: 0, a: 0, s: 0, b: 0 } });
+            const [homeLoading, setHomeLoading] = useState(true);
+            
+            const groupedClasses = useMemo(() => {
+                const groups = {};
+                Object.entries(classes).forEach(([id, c]) => {
+                    const level = c.level || "อื่นๆ";
+                    if (!groups[level]) groups[level] = [];
+                    groups[level].push({ id, ...c });
+                });
+                return groups;
+            }, [classes]);
+
+            useEffect(() => {
+                const fetchHomeStatus = async () => {
+                    if (!window.FirebaseServices) return;
+                    setHomeLoading(true);
+                    try {
+                        const { db, functions } = window.FirebaseServices;
+                        const results = {};
+                        const counts = { p: 0, l: 0, a: 0, s: 0, b: 0 };
+                        let totalCheckedStudents = 0;
+                        let totalStudentsOverall = 0;
+                        
+                        const [attSnap, allStudentsSnap] = await Promise.all([
+                            functions.get(functions.ref(db, `attendance_by_date/${today}`)),
+                            functions.get(functions.ref(db, `students`))
+                        ]);
+                        
+                        const allAttendance = attSnap.val() || {};
+                        const allStudents = allStudentsSnap.val() || {};
+
+                        Object.entries(classes).forEach(([id, c]) => {
+                            const classAtt = allAttendance[id] || {};
+                            const attendanceCount = Object.keys(classAtt).length;
+                            const studentCount = Object.keys(allStudents[id] || {}).length;
+                            
+                            totalStudentsOverall += studentCount;
+                            totalCheckedStudents += attendanceCount;
+                            
+                            Object.values(classAtt).forEach(statusVal => {
+                                let status = typeof statusVal === 'object' ? statusVal.status : statusVal;
+                                if (counts[status] !== undefined) counts[status]++;
+                            });
+
+                            results[id] = (studentCount > 0) && (attendanceCount >= studentCount);
+                        });
+                        
+                        setStatusMap(results);
+                        setSchoolSummary({ total: totalStudentsOverall, checked: totalCheckedStudents, counts });
+                    } catch (e) { 
+                        console.error("Home error:", e); 
+                    } finally { 
+                        setHomeLoading(false); 
+                    }
+                };
+
+                if (Object.keys(classes).length > 0) fetchHomeStatus();
+                else setHomeLoading(false);
+            }, [classes, today]);
+
+            return (
+                <div className="p-0">
+                    <div className="relative w-full h-[180px] overflow-hidden">
+                        <img 
+                            src={HEADER_BG} 
+                            alt="Sakolwittaya School Header" 
+                            className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                        
+                        <div className="absolute bottom-6 left-6 right-6 flex items-center justify-between text-white">
+                            <div className="flex items-center gap-4">
+                                <div className="logo-container w-14 h-14 bg-white/90 shadow-lg p-0.5 border border-white/20">
+                                    <img src={SCHOOL_LOGO} alt="School Logo" className="w-full h-full object-contain rounded-full" />
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-extrabold tracking-tighter leading-tight drop-shadow-md">โรงเรียนสกลวิทยา</h1>
+                                    <p className="text-[9px] uppercase font-bold tracking-[0.2em] opacity-90 drop-shadow-sm">SAKOLWITTAYA SCHOOL</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 bg-white/20 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/10 text-[10px] font-black uppercase">
+                                <Icons.Calendar />
+                                <span>{formatDisplayDate(today)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-6 -mt-8 relative z-10">
+                        <div className="bg-white rounded-[2.5rem] shadow-xl p-6 border border-gray-50 mb-8 animate-in">
+                            <div className="flex justify-between items-start mb-6">
+                                <div>
+                                    <h2 className="text-lg font-black text-gray-800">ภาพรวมการมาเรียนวันนี้</h2>
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Overall School Summary</p>
+                                </div>
+                                <div className="bg-primary/10 text-primary px-3 py-1 rounded-full flex items-center gap-1.5">
+                                    <Icons.UserGroup />
+                                    <span className="text-sm font-black">{schoolSummary.total}</span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-5 gap-2">
+                                {Object.entries(STATUS_MAP).map(([key, val]) => (
+                                    <div key={key} className={`${val.light} p-2 rounded-2xl text-center flex flex-col justify-center border border-white`}>
+                                        <div className={`${val.text} font-black text-lg`}>{schoolSummary.counts[key] || 0}</div>
+                                        <div className={`${val.text} text-[8px] font-bold uppercase`}>{val.label}</div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="mt-5 pt-5 border-t border-gray-50 flex items-center justify-between">
+                                <div className="flex-1 mr-4">
+                                    <div className="flex justify-between items-center mb-1.5 px-0.5">
+                                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">เช็กชื่อแล้ว</span>
+                                        <span className="text-[10px] font-black text-gray-700">
+                                            {schoolSummary.total > 0 ? Math.round((schoolSummary.checked / schoolSummary.total) * 100) : 0}%
+                                        </span>
+                                    </div>
+                                    <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-primary rounded-full transition-all duration-1000"
+                                            style={{ width: `${schoolSummary.total > 0 ? (schoolSummary.checked / schoolSummary.total) * 100 : 0}%` }}
+                                        ></div>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-[14px] font-black text-gray-800 leading-none">{schoolSummary.checked}</div>
+                                    <div className="text-[8px] text-gray-400 font-bold uppercase mt-1">คน</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {homeLoading ? (
+                            <div className="flex justify-center py-10 text-primary"><Icons.Loader /></div>
+                        ) : (
+                            <div className="space-y-6">
+                                {levels.map(level => groupedClasses[level] && (
+                                    <div key={level}>
+                                        <h3 className="text-xs font-black text-gray-300 mb-3 ml-2 flex items-center gap-2 uppercase tracking-[0.2em]">ระดับชั้น {level}</h3>
+                                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-2">
+                                            {groupedClasses[level].sort((a,b)=>a.room-b.room).map(c => {
+                                                const checked = statusMap[c.id];
+                                                return (
+                                                    <div 
+                                                        key={c.id} 
+                                                        onClick={() => checked && setSelectedClass(c.id)}
+                                                        className={`p-5 rounded-[2rem] border transition-all cursor-pointer h-full flex flex-col justify-between ${checked ? 'bg-white border-green-100 shadow-sm' : 'bg-white border-gray-100 opacity-60'}`}
+                                                    >
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <div className={`font-black text-2xl ${checked ? 'text-green-600' : 'text-gray-400'}`}>{c.name}</div>
+                                                            {checked && <div className="text-green-500 bg-green-50 w-6 h-6 rounded-full flex items-center justify-center scale-90"><Icons.Check /></div>}
+                                                        </div>
+                                                        <div className={`text-[10px] truncate font-bold uppercase tracking-wider ${checked ? 'text-gray-500' : 'text-gray-300'}`}>{c.teacher || 'ไม่มีระบุครู'}</div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {selectedClass && (
+                        <ClassDetailModal 
+                            classId={selectedClass} 
+                            className={classes[selectedClass]?.name}
+                            date={today}
+                            onClose={() => setSelectedClass(null)}
+                            premiumStatus={classes[selectedClass]?.premium}
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        const AttendanceView = ({ classes, today }) => {
+            const [selClass, setSelClass] = useState('');
+            const [students, setStudents] = useState([]);
+            const [localAttendance, setLocalAttendance] = useState({});
+            const [localRemarks, setLocalRemarks] = useState({});
+            const [saving, setSaving] = useState(false);
+            const [loading, setLoading] = useState(false);
+
+            useEffect(() => {
+                if (!selClass || !window.FirebaseServices) {
+                    setStudents([]);
+                    setLocalAttendance({});
+                    setLocalRemarks({});
+                    return;
+                }
+                
+                const fetchRoomData = async () => {
+                    setLoading(true);
+                    try {
+                        const { db, functions } = window.FirebaseServices;
+                        const [stdSnap, attSnap] = await Promise.all([
+                            functions.get(functions.ref(db, `students/${selClass}`)),
+                            functions.get(functions.ref(db, `attendance/${selClass}/${today}`))
+                        ]);
+                        const stdData = stdSnap.val() || {};
+                        setStudents(Object.entries(stdData).map(([id, val]) => ({ id, ...val })).sort((a,b)=>a.no-b.no));
+                        
+                        const attData = attSnap.val() || {};
+                        const formattedAtt = {};
+                        const formattedRem = {};
+                        Object.keys(attData).forEach(k => {
+                            if (typeof attData[k] === 'object') {
+                                formattedAtt[k] = attData[k].status;
+                                formattedRem[k] = attData[k].remark || '';
+                            } else {
+                                formattedAtt[k] = attData[k];
+                            }
+                        });
+                        setLocalAttendance(formattedAtt);
+                        setLocalRemarks(formattedRem);
+                    } catch (e) {
+                        console.error(e);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+                fetchRoomData();
+            }, [selClass, today]);
+
+            const markLocal = (stdId, status) => {
+                setLocalAttendance(prev => ({ ...prev, [stdId]: status }));
+            };
+
+            const handleRemarkChange = (stdId, text) => {
+                setLocalRemarks(prev => ({ ...prev, [stdId]: text }));
+            };
+
+            const isComplete = students.length > 0 && students.every(s => localAttendance[s.id]);
+
+            const saveToFirebase = async () => {
+                if (!isComplete || !window.FirebaseServices) return;
+                setSaving(true);
+                const { db, functions } = window.FirebaseServices;
+                
+                const saveData = {};
+                Object.keys(localAttendance).forEach(k => {
+                    if (localRemarks[k] && localRemarks[k].trim() !== '') {
+                        saveData[k] = { status: localAttendance[k], remark: localRemarks[k].trim() };
+                    } else {
+                        saveData[k] = localAttendance[k];
+                    }
+                });
+
+                try {
+                    await functions.set(functions.ref(db, `attendance/${selClass}/${today}`), saveData);
+                    await functions.set(functions.ref(db, `attendance_by_date/${today}/${selClass}`), saveData);
+                    Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
+                } catch (e) {
+                    Swal.fire('Error', 'ไม่สามารถบันทึกได้', 'error');
+                }
+                setSaving(false);
+            };
+
+            return (
+                <div className="p-6 h-full flex flex-col">
+                    <h2 className="text-2xl font-black text-gray-800 mb-6">เช็กชื่อนักเรียน</h2>
+                    <div className="relative mb-8">
+                        <select value={selClass} onChange={e=>setSelClass(e.target.value)} className="w-full p-5 pl-12 rounded-[2rem] bg-white border border-gray-100 font-bold text-primary shadow-sm appearance-none outline-none focus:ring-2 focus:ring-primary/10">
+                            <option value="">-- เลือกห้องเรียน --</option>
+                            {Object.entries(classes).map(([id, c]) => <option key={id} value={id}>{c.name}</option>)}
+                        </select>
+                        <div className="absolute left-5 top-1/2 -translate-y-1/2 text-primary/40"><Icons.Home /></div>
+                    </div>
+                    {selClass && (
+                        <div className="flex-1">
+                            {loading ? <div className="flex justify-center py-20 text-primary"><Icons.Loader /></div> : (
+                                <div>
+                                    <div className="space-y-4 mb-8">
+                                        {students.map(s => (
+                                            <div key={s.id} className="bg-white p-5 rounded-[2.5rem] shadow-sm border border-gray-50">
+                                                <div className="flex justify-between items-center mb-4 px-2">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 bg-gray-50 rounded-xl flex items-center justify-center text-xs font-bold text-gray-400">{s.no}</div>
+                                                        <div className="font-bold text-gray-800">
+                                                            {s.name} {s.nickname && <span className="text-gray-400 font-medium">({s.nickname})</span>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-5 gap-2 mb-3">
+                                                    {Object.entries(STATUS_MAP).map(([key, val]) => (
+                                                        <button key={key} onClick={()=>markLocal(s.id, key)} className={`h-12 rounded-2xl flex items-center justify-center font-bold text-[10px] ${localAttendance[s.id] === key ? `${val.color} text-white shadow-lg` : 'bg-gray-50 text-gray-400'}`}>{val.label}</button>
+                                                    ))}
+                                                </div>
+                                                <div className="px-1">
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)" 
+                                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-[10px] outline-none focus:ring-1 focus:ring-primary/20"
+                                                        value={localRemarks[s.id] || ''}
+                                                        onChange={(e) => handleRemarkChange(s.id, e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="pb-10">
+                                        <button onClick={saveToFirebase} disabled={!isComplete || saving} className={`w-full py-5 rounded-3xl font-bold flex items-center justify-center gap-3 shadow-lg ${isComplete && !saving ? 'bg-primary text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}>
+                                            {saving ? <Icons.Loader /> : <Icons.Save />} {saving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const ReportView = ({ classes, today }) => {
+            const [viewDate, setViewDate] = useState(today);
+            const [selectedClassId, setSelectedClassId] = useState(null);
+            const [reportData, setReportData] = useState({});
+            const [studentsData, setStudentsData] = useState({});
+            const [loading, setLoading] = useState(true);
+            const [searchStudent, setSearchStudent] = useState("");
+            const [personalReport, setPersonalReport] = useState(null);
+            const [openLevels, setOpenLevels] = useState({});
+
+            const toggleLevel = (level) => {
+                setOpenLevels(prev => ({
+                    ...prev,
+                    [level]: !prev[level]
+                }));
+            };
+
+            const fetchReportData = useCallback(async () => {
+                if (!window.FirebaseServices) return;
+                setLoading(true);
+                try {
+                    const { db, functions } = window.FirebaseServices;
+                    const rData = {}; const sData = {};
+                    await Promise.all(Object.keys(classes).map(async id => {
+                        const [attSnap, stdSnap] = await Promise.all([
+                            functions.get(functions.ref(db, `attendance/${id}/${viewDate}`)), 
+                            functions.get(functions.ref(db, `students/${id}`))
+                        ]);
+                        rData[id] = attSnap.val() || {}; sData[id] = stdSnap.val() || {};
+                    }));
+                    setReportData(rData); setStudentsData(sData);
+                } catch (e) { console.error(e); } finally { setLoading(false); }
+            }, [classes, viewDate]);
+
+            useEffect(() => { if (Object.keys(classes).length > 0) fetchReportData(); else setLoading(false); }, [classes, viewDate, fetchReportData]);
+
+            const deleteDayData = async () => {
+                if (!window.FirebaseServices) return;
+                const { isConfirmed } = await Swal.fire({
+                    title: 'ลบข้อมูลทั้งวัน?',
+                    text: `คุณต้องการลบข้อมูลทั้งหมดของวันที่ ${formatDisplayDate(viewDate)} ใช่หรือไม่?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#E60050',
+                    confirmButtonText: 'ยืนยันการลบ'
+                });
+
+                if (isConfirmed) {
+                    const { db, functions } = window.FirebaseServices;
+                    try {
+                        const promises = Object.keys(classes).flatMap(classId => [
+                            functions.remove(functions.ref(db, `attendance/${classId}/${viewDate}`)),
+                            functions.remove(functions.ref(db, `attendance_by_date/${viewDate}/${classId}`))
+                        ]);
+                        await Promise.all(promises);
+                        Swal.fire('สำเร็จ', 'ลบข้อมูลเรียบร้อยแล้ว', 'success');
+                        await fetchReportData(); 
+                    } catch (e) {
+                        Swal.fire('Error', 'ไม่สามารถลบข้อมูลได้', 'error');
+                    }
+                }
+            };
+
+            const groupedReportClasses = useMemo(() => {
+                const groups = {};
+                Object.entries(classes).forEach(([id, c]) => {
+                    const level = c.level || "อื่นๆ";
+                    if (!groups[level]) groups[level] = [];
+                    groups[level].push({ id, ...c });
+                });
+                Object.keys(groups).forEach(level => {
+                    groups[level].sort((a, b) => (a.room || 0) - (b.room || 0));
+                });
+                return groups;
+            }, [classes]);
+
+            const levelsList = ["ม.1", "ม.2", "ม.3", "ม.4", "ม.5", "ม.6"];
+
+            const schoolSummary = useMemo(() => {
+                let totalStudents = 0; let summary = { p: 0, l: 0, a: 0, s: 0, b: 0 };
+                Object.keys(classes).forEach(classId => {
+                    totalStudents += Object.keys(studentsData[classId] || {}).length;
+                    Object.values(reportData[classId] || {}).forEach(statusVal => { 
+                        let status = typeof statusVal === 'object' ? statusVal.status : statusVal;
+                        if (summary[status] !== undefined) summary[status]++; 
+                    });
+                });
+                return { totalStudents, summary };
+            }, [classes, studentsData, reportData]);
+
+            const handleSearchStudent = async () => {
+                if (!searchStudent.trim() || !window.FirebaseServices) return;
+                setLoading(true);
+                try {
+                    const { db, functions } = window.FirebaseServices;
+                    let foundStudent = null;
+                    let foundClassId = null;
+
+                    for (const cid of Object.keys(classes)) {
+                        const stds = studentsData[cid];
+                        if (stds) {
+                            const match = Object.entries(stds).find(([id, s]) => 
+                                s.sid === searchStudent || 
+                                s.name.includes(searchStudent)
+                            );
+                            if (match) {
+                                foundStudent = { id: match[0], ...match[1] };
+                                foundClassId = cid;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!foundStudent) {
+                        Swal.fire("ไม่พบข้อมูล", "ไม่พบรายชื่อหรือรหัสนักเรียนนี้ในระบบ", "info");
+                        setLoading(false);
+                        return;
+                    }
+
+                    const historySnap = await functions.get(functions.ref(db, `attendance/${foundClassId}`));
+                    const allHistory = historySnap.val() || {};
+                    
+                    const personalLogs = [];
+                    Object.entries(allHistory).forEach(([date, att]) => {
+                        if (att[foundStudent.id]) {
+                            let attVal = att[foundStudent.id];
+                            personalLogs.push({
+                                date,
+                                status: typeof attVal === 'object' ? attVal.status : attVal,
+                                remark: typeof attVal === 'object' ? attVal.remark : ''
+                            });
+                        }
+                    });
+
+                    personalLogs.sort((a, b) => b.date.localeCompare(a.date));
+
+                    setPersonalReport({
+                        student: foundStudent,
+                        className: classes[foundClassId].name,
+                        logs: personalLogs
+                    });
+                } catch (e) {
+                    console.error(e);
+                    Swal.fire("Error", "เกิดข้อผิดพลาดในการดึงข้อมูล", "error");
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="p-6">
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-2xl font-black text-gray-800">รายงานข้อมูล</h2>
+                        <button onClick={deleteDayData} className="w-10 h-10 rounded-full bg-red-50 text-red-500 flex items-center justify-center active:scale-90 transition-transform">
+                            <Icons.Trash />
+                        </button>
+                    </div>
+
+                    <div className="space-y-3 mb-8">
+                        <div className="relative">
+                            <input type="date" value={viewDate} onChange={e=>setViewDate(e.target.value)} className="w-full p-5 pl-12 rounded-[2rem] bg-white border border-gray-100 font-bold text-gray-700 shadow-sm appearance-none outline-none focus:ring-2 focus:ring-primary/10" />
+                            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"><Icons.Calendar /></div>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                            <div className="relative flex-1">
+                                <input 
+                                    type="text" 
+                                    placeholder="ค้นหารายคน (ชื่อ หรือ รหัส)" 
+                                    value={searchStudent}
+                                    onChange={e => setSearchStudent(e.target.value)}
+                                    className="w-full p-4 pl-12 rounded-[2rem] bg-white border border-gray-100 font-bold text-gray-700 shadow-sm outline-none focus:ring-2 focus:ring-primary/10 text-sm"
+                                />
+                                <div className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400"><Icons.UserGroup /></div>
+                            </div>
+                            <button onClick={handleSearchStudent} className="bg-primary text-white px-6 rounded-[2rem] font-bold shadow-lg active:scale-95 transition-transform text-sm">ค้นหา</button>
+                        </div>
+                    </div>
+
+                    {loading ? <div className="flex justify-center py-20 text-primary"><Icons.Loader /></div> : (
+                        <>
+                            {personalReport ? (
+                                <div className="animate-in">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="font-black text-gray-800">ประวัติรายบุคคล</h3>
+                                        <button onClick={() => setPersonalReport(null)} className="text-xs text-primary font-bold">ดูรายงานภาพรวม</button>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-[2.5rem] shadow-xl border-2 border-primary/10 mb-8">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div>
+                                                <div className="text-lg font-black text-primary">{personalReport.student.name}</div>
+                                                <div className="text-xs font-bold text-gray-400">เลขที่ {personalReport.student.no} | {personalReport.className}</div>
+                                            </div>
+                                            <div className="bg-gray-50 px-3 py-1 rounded-lg text-[10px] font-bold text-gray-500 uppercase tracking-tighter">ID: {personalReport.student.sid}</div>
+                                        </div>
+                                        
+                                        <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                            {personalReport.logs.length === 0 ? (
+                                                <div className="text-center py-10 text-gray-300 font-bold">ไม่พบประวัติการเช็กชื่อ</div>
+                                            ) : (
+                                                personalReport.logs.map((log, idx) => {
+                                                    const status = STATUS_MAP[log.status];
+                                                    return (
+                                                        <div key={idx} className="flex flex-col p-3 bg-gray-50 rounded-2xl border border-white mb-2">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-xs font-bold text-gray-600">{formatDisplayDate(log.date)}</span>
+                                                                <div className={`${status.color} text-white text-[9px] font-bold px-3 py-1 rounded-full`}>
+                                                                    {status.label}
+                                                                </div>
+                                                            </div>
+                                                            {log.remark && <div className="mt-2 text-[10px] text-gray-500 bg-white p-2 rounded-lg border border-gray-100 overflow-x-auto whitespace-nowrap max-w-full">หมายเหตุ: {log.remark}</div>}
+                                                        </div>
+                                                    )
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="bg-white p-6 rounded-[2.5rem] border-2 border-primary/10 shadow-xl mb-10">
+                                        <div className="flex justify-between items-end mb-6">
+                                            <h3 className="text-primary font-black text-lg">สรุปภาพรวมโรงเรียน</h3>
+                                            <div className="text-right">
+                                                <div className="text-2xl font-black text-gray-800">{schoolSummary.totalStudents}</div>
+                                                <div className="text-[10px] text-gray-400 font-bold uppercase">คนทั้งหมด</div>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-5 gap-2">
+                                            {Object.entries(STATUS_MAP).map(([key, val]) => (
+                                                <div key={key} className={`${val.light} p-3 rounded-2xl text-center`}>
+                                                    <div className={`${val.text} font-black text-xl`}>{schoolSummary.summary[key]}</div>
+                                                    <div className={`${val.text} text-[12px] font-bold`}>{val.label}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="space-y-4">
+                                        {levelsList.map(level => {
+                                            const levelClasses = groupedReportClasses[level] || [];
+                                            if (levelClasses.length === 0) return null;
+                                            
+                                            const isOpen = openLevels[level];
+                                            
+                                            return (
+                                                <div key={level} className="space-y-2">
+                                                    <button 
+                                                        onClick={() => toggleLevel(level)}
+                                                        className={`w-full flex items-center justify-between p-5 rounded-[2rem] bg-white border border-gray-100 shadow-sm font-black text-lg transition-all ${isOpen ? 'text-primary border-primary/20' : 'text-gray-700'}`}
+                                                    >
+                                                        <span>ระดับชั้น {level}</span>
+                                                        <div className={isOpen ? 'text-primary' : 'text-gray-400'}>
+                                                            {isOpen ? <Icons.ArrowUp /> : <Icons.ArrowDown />}
+                                                        </div>
+                                                    </button>
+                                                    
+                                                    {isOpen && (
+                                                        <div className="space-y-3 pl-4 animate-in">
+                                                            {levelClasses.map(c => {
+                                                                const att = reportData[c.id] || {}; 
+                                                                const vals = Object.values(att);
+                                                                return (
+                                                                    <div 
+                                                                        key={c.id} 
+                                                                        onClick={() => vals.length > 0 && setSelectedClassId(c.id)} 
+                                                                        className={`bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm transition-all ${vals.length > 0 ? 'cursor-pointer hover:border-primary/20 active:scale-95' : 'opacity-50'}`}
+                                                                    >
+                                                                        <div className="flex justify-between items-center mb-4">
+                                                                            <div className="font-bold text-gray-800 text-lg">{c.name}</div>
+                                                                            {vals.length === 0 && <span className="text-[10px] font-bold text-gray-300 uppercase">ยังไม่เช็กชื่อ</span>}
+                                                                        </div>
+                                                                        <div className="grid grid-cols-5 gap-2">
+                                                                            {Object.entries(STATUS_MAP).map(([key, val]) => (
+                                                                                <div key={key} className={`${val.light} p-3 rounded-2xl text-center`}>
+                                                                                    <div className={`${val.text} font-black text-lg`}>{vals.filter(v=>(typeof v === 'object' ? v.status : v)===key).length}</div>
+                                                                                    <div className={`${val.text} text-[12px] font-bold`}>{val.label}</div>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            )}
+                        </>
+                    )}
+                    {selectedClassId && <ClassDetailModal classId={selectedClassId} className={classes[selectedClassId]?.name} date={viewDate} onClose={() => setSelectedClassId(null)} premiumStatus={classes[selectedClassId]?.premium} />}
+                </div>
+            );
+        };
+
+        const SettingsView = ({ classes }) => {
+            const [subView, setSubView] = useState('menu'); // menu, class_mgmt, premium_mgmt
+            const [selectedClassId, setSelectedClassId] = useState(null);
+            const [showClassModal, setShowClassModal] = useState(false);
+            const [editingClass, setEditingClass] = useState(null);
+            const [isAdmin, setIsAdmin] = useState(false);
+
+            const handleAdminLogin = async () => {
+                const { value: formValues } = await Swal.fire({
+                    title: 'เข้าสู่ระบบผู้ดูแลระบบ',
+                    html:
+                        '<input id="swal-input1" class="swal2-input" placeholder="Username">' +
+                        '<input id="swal-input2" type="password" class="swal2-input" placeholder="Password">',
+                    focusConfirm: false,
+                    showCancelButton: true,
+                    confirmButtonColor: '#E60050',
+                    preConfirm: () => {
+                        return [
+                            document.getElementById('swal-input1').value,
+                            document.getElementById('swal-input2').value
+                        ]
+                    }
+                });
+
+                if (formValues) {
+                    const [user, pass] = formValues;
+                    if (user === 'sktc' && pass === 'sakol') {
+                        setIsAdmin(true);
+                        setSubView('premium_mgmt');
+                    } else {
+                        Swal.fire('ผิดพลาด', 'Username หรือ Password ไม่ถูกต้อง', 'error');
+                    }
+                }
+            };
+
+            const togglePremium = async (classId, currentStatus) => {
+                if (!window.FirebaseServices) return;
+                const { db, functions } = window.FirebaseServices;
+                try {
+                    await functions.update(functions.ref(db, `classes/${classId}`), { premium: !currentStatus });
+                } catch (e) {
+                    console.error(e);
+                }
+            };
+
+            const handleSaveClass = (e) => {
+                if (!window.FirebaseServices) return;
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                const level = fd.get('level'); 
+                const room = fd.get('room'); 
+                const teacher = fd.get('teacher');
+                
+                const isDuplicate = Object.entries(classes).some(([id, c]) => {
+                    if (editingClass && id === editingClass.id) return false;
+                    return c.level === level && String(c.room) === String(room);
+                });
+
+                if (isDuplicate) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'ข้อมูลซ้ำซ้อน',
+                        text: `ระดับชั้น ${level}/${room} มีอยู่ในระบบแล้ว`,
+                        confirmButtonColor: '#E60050'
+                    });
+                    return;
+                }
+
+                const data = { level, room, name: `${level}/${room}`, teacher, premium: editingClass?.premium || false };
+                const { db, functions } = window.FirebaseServices;
+                if (editingClass) functions.update(functions.ref(db, `classes/${editingClass.id}`), data);
+                else functions.push(functions.ref(db, 'classes'), data);
+                setShowClassModal(false); setEditingClass(null);
+            };
+
+            const handleDeleteClass = async (e, classId, className) => {
+                e.stopPropagation();
+                if (!window.FirebaseServices) return;
+                
+                const { isConfirmed } = await Swal.fire({
+                    title: 'ลบห้องเรียน?',
+                    text: `คุณต้องการลบห้อง "${className}" และข้อมูลนักเรียนทั้งหมดในห้องนี้ใช่หรือไม่?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#E60050',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'ยืนยันการลบ',
+                    cancelButtonText: 'ยกเลิก'
+                });
+
+                if (isConfirmed) {
+                    const { db, functions } = window.FirebaseServices;
+                    try {
+                        await Promise.all([
+                            functions.remove(functions.ref(db, `classes/${classId}`)),
+                            functions.remove(functions.ref(db, `students/${classId}`)),
+                            functions.remove(functions.ref(db, `attendance/${classId}`))
+                        ]);
+                        Swal.fire('ลบสำเร็จ', '', 'success');
+                    } catch (e) {
+                        Swal.fire('Error', 'ไม่สามารถลบได้', 'error');
+                    }
+                }
+            };
+
+            if (selectedClassId) return <StudentView classId={selectedClassId} className={classes[selectedClassId]?.name} onBack={() => setSelectedClassId(null)} />;
+
+            if (subView === 'menu') {
+                return (
+                    <div className="p-6">
+                        <h2 className="text-2xl font-black text-gray-800 mb-8">ตั้งค่า</h2>
+                        <div className="space-y-4">
+                            <button onClick={() => setSubView('class_mgmt')} className="w-full bg-white p-6 rounded-[2rem] flex items-center justify-between shadow-sm border border-gray-100 active:scale-95 transition-transform">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center">
+                                        <Icons.Home />
+                                    </div>
+                                    <div className="text-left">
+                                        <div className="font-bold text-gray-800 text-lg">จัดการระดับชั้นและห้องเรียน</div>
+                                        <div className="text-xs text-gray-400 font-medium uppercase tracking-widest">Classroom Management</div>
+                                    </div>
+                                </div>
+                                <Icons.Back className="rotate-180" />
+                            </button>
+
+                            <button onClick={handleAdminLogin} className="w-full bg-white p-6 rounded-[2rem] flex items-center justify-between shadow-sm border border-gray-100 active:scale-95 transition-transform">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-yellow-400/10 text-yellow-600 rounded-full flex items-center justify-center">
+                                        <Icons.Vip />
+                                    </div>
+                                    <div className="text-left">
+                                        <div className="font-bold text-gray-800 text-lg">สิทธิ์ Premium</div>
+                                        <div className="text-xs text-gray-400 font-medium uppercase tracking-widest">Premium Permissions</div>
+                                    </div>
+                                </div>
+                                <Icons.Back className="rotate-180" />
+                            </button>
+                        </div>
+
+                        <div className="mt-14 flex flex-col items-center justify-center opacity-50 select-none">
+                            <img src={SCHOOL_LOGO} alt="School Logo" className="w-8 h-8 object-contain grayscale mb-2" />
+                            <h3 className="text-[11px] font-black text-gray-500 tracking-widest uppercase">SK Class Check</h3>
+                            <p className="text-[9px] font-bold text-gray-400 mt-0.5 uppercase tracking-[0.2em]">Version 1.0.0</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (subView === 'class_mgmt') {
+                return (
+                    <div className="p-6">
+                        <div className="flex items-center gap-3 mb-6">
+                            <button onClick={() => setSubView('menu')} className="p-2 -ml-2 text-gray-400"><Icons.Back /></button>
+                            <h2 className="text-2xl font-black text-gray-800">จัดการข้อมูลห้อง</h2>
+                        </div>
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-[0.2em]">รายการห้องเรียน</h3>
+                            <button onClick={()=>{setEditingClass(null); setShowClassModal(true)}} className="bg-primary text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg"><Icons.Plus /></button>
+                        </div>
+                        <div className="space-y-3">
+                            {Object.entries(classes).sort((a,b)=>a[1].name.localeCompare(b[1].name)).map(([id, c]) => (
+                                <div key={id} className="bg-white p-4 rounded-[2rem] flex items-center gap-4 shadow-sm border border-gray-100">
+                                    <div onClick={()=>setSelectedClassId(id)} className="flex-1 cursor-pointer"><div className="font-bold text-gray-800 text-lg">{c.name}</div><div className="text-[12px] text-gray-400">{c.teacher || 'ไม่ระบุชื่อครู'}</div></div>
+                                    <div className="flex gap-1">
+                                        <button onClick={(e)=> handleDeleteClass(e, id, c.name)} className="p-2 text-red-200 hover:text-red-400"><Icons.Trash /></button>
+                                        <button onClick={()=> {setEditingClass({id, ...c}); setShowClassModal(true)}} className="p-2 text-gray-300"><Icons.SettingsGear /></button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        {showClassModal && (
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 modal-overlay">
+                                <div className="bg-white w-full rounded-[2.5rem] p-8 animate-in shadow-2xl">
+                                    <h3 className="text-xl font-bold text-gray-800 mb-6">{editingClass ? 'แก้ไขข้อมูล' : 'เพิ่มห้องเรียน'}</h3>
+                                    <form onSubmit={handleSaveClass} className="space-y-4">
+                                        <select name="level" defaultValue={editingClass?.level || 'ม.1'} className="w-full p-4 bg-gray-50 rounded-2xl font-bold">{['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'].map(l => <option key={l} value={l}>{l}</option>)}</select>
+                                        <input name="room" type="number" placeholder="เลขห้อง" defaultValue={editingClass?.room || ''} className="w-full p-4 bg-gray-50 rounded-2xl font-bold" required />
+                                        <input name="teacher" placeholder="ครูประจำชั้น" defaultValue={editingClass?.teacher || ''} className="w-full p-4 bg-gray-50 rounded-2xl font-bold" />
+                                        <div className="flex gap-2 pt-6"><button type="button" onClick={()=>setShowClassModal(false)} className="flex-1 py-4 text-gray-400">ยกเลิก</button><button type="submit" className="flex-1 bg-primary text-white py-4 rounded-3xl font-bold">บันทึก</button></div>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            if (subView === 'premium_mgmt' && isAdmin) {
+                return (
+                    <div className="p-6">
+                        <div className="flex items-center gap-3 mb-6">
+                            <button onClick={() => {setIsAdmin(false); setSubView('menu');}} className="p-2 -ml-2 text-gray-400"><Icons.Back /></button>
+                            <h2 className="text-2xl font-black text-gray-800">จัดการสิทธิ์ Premium</h2>
+                        </div>
+                        <p className="text-xs text-gray-400 mb-6 font-medium">เปิด-ปิดความสามารถในการคัดลอกรายงานของแต่ละห้อง</p>
+                        <div className="space-y-3">
+                            {Object.entries(classes).sort((a,b)=>a[1].name.localeCompare(b[1].name)).map(([id, c]) => (
+                                <div key={id} className="bg-white p-5 rounded-[2rem] flex items-center justify-between shadow-sm border border-gray-100">
+                                    <div className="flex items-center gap-4">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${c.premium ? 'bg-yellow-400 text-white' : 'bg-gray-100 text-gray-300'}`}>
+                                            <Icons.Vip />
+                                        </div>
+                                        <div>
+                                            <div className="font-bold text-gray-800">{c.name}</div>
+                                            <div className="text-[10px] font-bold text-gray-400 uppercase">{c.premium ? 'Premium Active' : 'Basic Plan'}</div>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => togglePremium(id, c.premium)} className="p-2 active:scale-90 transition-transform">
+                                        {c.premium ? <Icons.ToggleOn /> : <Icons.ToggleOff />}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
+
+            return null;
+        };
+
+        const StudentView = ({ classId, className, onBack }) => {
+            const [students, setStudents] = useState([]);
+            const [showModal, setShowModal] = useState(false);
+            const [editingStd, setEditingStd] = useState(null);
+
+            useEffect(() => {
+                if (!window.FirebaseServices) return;
+                const { db, functions } = window.FirebaseServices;
+                const unsubscribe = functions.onValue(functions.ref(db, `students/${classId}`), snap => {
+                    const data = snap.val() || {};
+                    setStudents(Object.entries(data).map(([id, v]) => ({ id, ...v })).sort((a,b)=>a.no-b.no));
+                });
+                return () => unsubscribe();
+            }, [classId]);
+
+            const handleSave = (e) => {
+                if (!window.FirebaseServices) return;
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                const newData = { 
+                    no: parseInt(fd.get('no')), 
+                    sid: fd.get('sid').trim(), 
+                    name: fd.get('name').trim(), 
+                    nickname: fd.get('nickname').trim(), 
+                    gender: fd.get('gender') 
+                };
+
+                const otherStudents = editingStd 
+                    ? students.filter(s => s.id !== editingStd.id) 
+                    : students;
+
+                if (otherStudents.find(s => s.no === newData.no)) {
+                    Swal.fire('ข้อมูลซ้ำ', `เลขที่ ${newData.no} มีอยู่ในระบบแล้ว`, 'error');
+                    return;
+                }
+                if (otherStudents.find(s => s.sid === newData.sid)) {
+                    Swal.fire('ข้อมูลซ้ำ', `รหัสนักเรียน ${newData.sid} มีอยู่ในระบบแล้ว`, 'error');
+                    return;
+                }
+                if (otherStudents.find(s => s.name.toLowerCase() === newData.name.toLowerCase())) {
+                    Swal.fire('ข้อมูลซ้ำ', `ชื่อ-นามสกุล "${newData.name}" มีอยู่ในระบบแล้ว`, 'error');
+                    return;
+                }
+
+                const { db, functions } = window.FirebaseServices;
+                if (editingStd) functions.update(functions.ref(db, `students/${classId}/${editingStd.id}`), newData);
+                else functions.push(functions.ref(db, `students/${classId}`), newData);
+                
+                setShowModal(false); 
+                setEditingStd(null);
+            };
+
+            const handleDeleteStudent = async (stdId, stdName) => {
+                if (!window.FirebaseServices) return;
+                const { isConfirmed } = await Swal.fire({
+                    title: 'ยืนยันการลบ?',
+                    text: `คุณต้องการลบรายชื่อ "${stdName}" ใช่หรือไม่?`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#E60050',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'ยืนยัน',
+                    cancelButtonText: 'ยกเลิก'
+                });
+
+                if (isConfirmed) {
+                    const { db, functions } = window.FirebaseServices;
+                    try {
+                        await functions.remove(functions.ref(db, `students/${classId}/${stdId}`));
+                        Swal.fire('ลบสำเร็จ', '', 'success');
+                    } catch (e) {
+                        Swal.fire('Error', 'ไม่สามารถลบได้', 'error');
+                    }
+                }
+            };
+
+            const handleImport = (e) => {
+                const file = e.target.files[0]; 
+                if (!file || !window.FirebaseServices) return;
+                
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const wb = window.XLSX.read(evt.target.result, { type: 'binary' }); 
+                        const ws = wb.Sheets[wb.SheetNames[0]]; 
+                        const json = window.XLSX.utils.sheet_to_json(ws);
+                        
+                        const { db, functions } = window.FirebaseServices;
+                        let skipCount = 0;
+                        let successCount = 0;
+
+                        json.forEach(row => {
+                            const data = { 
+                                no: Number(row["เลขที่"] || row["No"] || row.no || row.No), 
+                                sid: String(row["รหัส"] || row["รหัสนักเรียน"] || row.sid || row.SID || '').trim(), 
+                                name: String(row["ชื่อสกุล"] || row["ชื่อ-นามสกุล"] || row["ชื่อสกล"] || row.name || row.Name || '').trim(), 
+                                nickname: String(row["ชื่อเล่น"] || row.nickname || row.Nickname || '').trim(), 
+                                gender: String(row["เพศ"] || row.gender || row.Gender || '').trim() 
+                            };
+                            
+                            if (data.no && data.sid && data.name) {
+                                const isDuplicate = students.some(s => s.no === data.no || s.sid === data.sid || s.name === data.name);
+                                
+                                if (!isDuplicate) {
+                                    functions.push(functions.ref(db, `students/${classId}`), data);
+                                    successCount++;
+                                } else {
+                                    skipCount++;
+                                }
+                            } else {
+                                if (Object.keys(row).length > 0) skipCount++;
+                            }
+                        });
+                        
+                        const msg = skipCount > 0 
+                            ? `นำเข้าสำเร็จ ${successCount} รายการ (ข้ามข้อมูลซ้ำหรือผิดพลาด ${skipCount} รายการ)`
+                            : `นำเข้าข้อมูลเรียบร้อย ${successCount} รายการ`;
+                        
+                        Swal.fire('สำเร็จ', msg, 'success');
+                        e.target.value = null;
+                    } catch (err) {
+                        Swal.fire('ผิดพลาด', 'ไม่สามารถอ่านไฟล์ Excel ได้ กรุณาตรวจสอบรูปแบบไฟล์', 'error');
+                        console.error(err);
+                    }
+                };
+                reader.onerror = () => Swal.fire('ผิดพลาด', 'ไม่สามารถอ่านไฟล์ได้', 'error');
+                reader.readAsBinaryString(file);
+            };
+
+            return (
+                <div className="p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3"><button onClick={onBack} className="p-2 -ml-2 text-gray-400"><Icons.Back /></button><h2 className="text-xl font-black">{className}</h2></div>
+                        <div className="flex gap-2">
+                            <label className="bg-green-500 text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg cursor-pointer">
+                                <Icons.FileExcel />
+                                <input type="file" accept=".xlsx, .xls" hidden onChange={handleImport} />
+                            </label>
+                            <button onClick={()=>{setEditingStd(null); setShowModal(true)}} className="bg-primary text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg"><Icons.Plus /></button>
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        {students.map(s => (
+                            <div key={s.id} className="bg-white p-4 rounded-3xl flex items-center gap-4 shadow-sm border border-gray-50 group">
+                                <div onClick={()=>{setEditingStd(s); setShowModal(true)}} className="w-8 h-8 bg-gray-50 rounded-xl flex items-center justify-center text-[12px] font-bold text-gray-400 cursor-pointer">{s.no}</div>
+                                <div onClick={()=>{setEditingStd(s); setShowModal(true)}} className="font-bold text-gray-700 flex-1 cursor-pointer">
+                                    {s.name} {s.nickname && <span className="text-gray-400 font-medium">({s.nickname})</span>}
+                                </div>
+                                <button 
+                                    onClick={() => handleDeleteStudent(s.id, s.name)} 
+                                    className="p-2 text-red-300 hover:text-red-500 transition-colors"
+                                    title="ลบนักเรียน"
+                                >
+                                    <Icons.Trash />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                    {showModal && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 modal-overlay">
+                            <div className="bg-white w-full rounded-[2.5rem] p-8 animate-in shadow-2xl relative">
+                                <h3 className="text-xl font-bold mb-6">{editingStd ? 'แก้ไข' : 'เพิ่ม'}นักเรียน</h3>
+                                <form onSubmit={handleSave} className="space-y-3">
+                                    <input name="no" type="number" placeholder="เลขที่" defaultValue={editingStd?.no || ''} className="w-full p-4 bg-gray-50 rounded-2xl font-bold" required />
+                                    <input name="sid" placeholder="รหัสนักเรียน" defaultValue={editingStd?.sid || ''} className="w-full p-4 bg-gray-50 rounded-2xl font-bold" required />
+                                    <input name="name" placeholder="ชื่อ-นามสกุล" defaultValue={editingStd?.name || ''} className="w-full p-4 bg-gray-50 rounded-2xl font-bold" required />
+                                    <input name="nickname" placeholder="ชื่อเล่น" defaultValue={editingStd?.nickname || ''} className="w-full p-4 bg-gray-50 rounded-2xl font-bold" />
+                                    <select name="gender" defaultValue={editingStd?.gender || ''} className="w-full p-4 bg-gray-50 rounded-2xl font-bold"><option value="">เลือกเพศ</option><option value="ชาย">ชาย</option><option value="หญิง">หญิง</option></select>
+                                    <div className="flex gap-2 pt-4"><button type="button" onClick={()=>{setShowModal(false); setEditingStd(null)}} className="flex-1 py-4 text-gray-400">ยกเลิก</button><button type="submit" className="flex-1 bg-primary text-white py-4 rounded-3xl font-bold">บันทึก</button></div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [ready, setReady] = useState(false);
+            const [activeTab, setActiveTab] = useState('home');
+            const [classes, setClasses] = useState({});
+            const [loading, setLoading] = useState(true);
+            const [today, setToday] = useState(getLocalDateString());
+
+            useEffect(() => {
+                if (window.FirebaseServices) setReady(true);
+                else window.addEventListener('firebase-ready', () => setReady(true));
+            }, []);
+
+            useEffect(() => {
+                if (!ready) return;
+                const { auth, db, functions } = window.FirebaseServices;
+                functions.signInAnonymously(auth).then(() => {
+                    functions.onAuthStateChanged(auth, usr => {
+                        if (usr) {
+                            functions.onValue(functions.ref(db, 'classes'), snap => {
+                                setClasses(snap.val() || {});
+                                setTimeout(() => setLoading(false), 1500);
+                            });
+                        }
+                    });
+                });
+            }, [ready]);
+
+            if (loading) return (
+                <div className="min-h-screen splash-gradient flex flex-col items-center justify-center p-6 text-white overflow-hidden">
+                    <div className="logo-container w-32 h-32 bg-white shadow-2xl p-1 mb-6 animate-pulse-slow">
+                        <img src={SCHOOL_LOGO} alt="School Logo" className="w-full h-full object-contain rounded-full" />
+                        <div className="shining-effect"></div>
+                    </div>
+                    <h2 className="text-2xl font-black tracking-tight text-center">SK CHECKER</h2>
+                    <p className="text-white/60 text-xs font-bold mt-2 uppercase tracking-[0.3em]">Version 1.2.0</p>
+                    <div className="mt-12 flex gap-1">
+                        <div className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
+                        <div className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
+                        <div className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen max-w-md mx-auto bg-gray-50 shadow-xl flex flex-col relative">
+                    <div className="flex-1 content-area">
+                        {activeTab === 'home' && <HomeView classes={classes} today={today} />}
+                        {activeTab === 'attendance' && <AttendanceView classes={classes} today={today} />}
+                        {activeTab === 'report' && <ReportView classes={classes} today={today} />}
+                        {activeTab === 'settings' && <SettingsView classes={classes} />}
+                    </div>
+                    <nav className="fixed bottom-0 w-full max-w-md glass-nav border-t border-gray-100 flex h-20 items-center justify-around z-[70] shadow-lg rounded-t-[2.5rem] px-4">
+                        <TabItem active={activeTab==='home'} onClick={()=>setActiveTab('home')} icon={<Icons.Home />} label="หน้าหลัก" />
+                        <TabItem active={activeTab==='attendance'} onClick={()=>setActiveTab('attendance')} icon={<Icons.Attendance />} label="เช็กชื่อ" isMain />
+                        <TabItem active={activeTab==='report'} onClick={()=>setActiveTab('report')} icon={<Icons.Report />} label="รายงาน" />
+                        <TabItem active={activeTab==='settings'} onClick={()=>setActiveTab('settings')} icon={<Icons.Settings />} label="ตั้งค่า" />
+                    </nav>
+                </div>
+            );
+        };
+
+        const TabItem = ({ active, onClick, icon, label, isMain }) => (
+            <button onClick={onClick} className={`flex flex-col items-center justify-center h-full w-full transition-all ${active ? 'text-primary' : 'text-gray-400'}`}>
+                <div className={`${isMain && active ? 'bg-primary text-white p-3 rounded-full -mt-10 shadow-lg scale-110' : isMain ? 'bg-white text-gray-400 p-3 rounded-full -mt-8 shadow border border-gray-50' : ''} transition-all flex items-center justify-center`}>
+                    {icon}
+                </div>
+                <span className="text-[10px] mt-1 font-medium">{label}</span>
+            </button>
+        );
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
