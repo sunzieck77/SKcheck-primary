@@ -166,9 +166,14 @@
             } 
         };
         window.dispatchEvent(new Event('firebase-ready'));
+        Babel.registerPreset('react-classic', {
+            presets: [
+                [Babel.availablePresets['react'], { runtime: 'classic' }]
+            ]
+        });
     </script>
 
-    <script type="text/babel">
+    <script type="text/babel" data-presets="react-classic">
         const { useState, useEffect, useMemo, useCallback } = React;
 
         const SCHOOL_LOGO = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSALx--APIlNcrPDzl7sIWS_1Pv_ThBQ2ooQg&s";
@@ -210,7 +215,8 @@
             ToggleOn: () => <i className="ri-toggle-fill text-[40px] text-green-500"></i>,
             ToggleOff: () => <i className="ri-toggle-line text-[40px] text-gray-300"></i>,
             ArrowDown: () => <i className="ri-arrow-down-s-line text-[20px]"></i>,
-            ArrowUp: () => <i className="ri-arrow-up-s-line text-[20px]"></i>
+            ArrowUp: () => <i className="ri-arrow-up-s-line text-[20px]"></i>,
+            Refresh: () => <i className="ri-refresh-line text-[22px]"></i>,
         };
 
         const STATUS_MAP = {
@@ -1044,6 +1050,58 @@
             const [editingClass, setEditingClass] = useState(null);
             const [isAdmin, setIsAdmin] = useState(false);
 
+            // ฟังก์ชันสำหรับเคลียร์ Cache และ Service Worker
+            const handleClearCache = async () => {
+                const { isConfirmed } = await Swal.fire({
+                    title: 'ล้างแคชระบบ?',
+                    text: 'การล้างแคชจะช่วยแก้ปัญหาแอปไม่ยอมอัปเดต หรือค้าง หลังจากล้างแคชแล้วระบบจะรีเฟรชหน้าเว็บใหม่',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#E60050',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'ยืนยันล้างแคช',
+                    cancelButtonText: 'ยกเลิก'
+                });
+
+                if (isConfirmed) {
+                    try {
+                        // 1. ยกเลิก Service Worker
+                        if ('serviceWorker' in navigator) {
+                            const registrations = await navigator.serviceWorker.getRegistrations();
+                            for (let registration of registrations) {
+                                await registration.unregister();
+                            }
+                        }
+                        
+                        // 2. ล้าง Cache Storage
+                        if ('caches' in window) {
+                            const cacheNames = await caches.keys();
+                            for (let cacheName of cacheNames) {
+                                await caches.delete(cacheName);
+                            }
+                        }
+
+                        // 3. ล้าง Local/Session Storage
+                        localStorage.clear();
+                        sessionStorage.clear();
+
+                        await Swal.fire({
+                            icon: 'success',
+                            title: 'ล้างแคชสำเร็จ',
+                            text: 'ระบบกำลังเริ่มทำงานใหม่',
+                            timer: 1500,
+                            showConfirmButton: false
+                        });
+
+                        // 4. รีเฟรชหน้าเว็บแบบ Hard Reload
+                        window.location.reload(true);
+                    } catch (err) {
+                        console.error('Clear Cache Error:', err);
+                        Swal.fire('Error', 'เกิดข้อผิดพลาดในการล้างแคช', 'error');
+                    }
+                }
+            };
+
             const handleAdminLogin = async () => {
                 const { value: formValues } = await Swal.fire({
                     title: 'เข้าสู่ระบบผู้ดูแลระบบ',
@@ -1052,7 +1110,7 @@
                         '<input id="swal-input2" type="password" class="swal2-input" placeholder="Password">',
                     focusConfirm: false,
                     showCancelButton: true,
-                    confirmButtonColor: '#1fb0ff',
+                    confirmButtonColor: '#E60050',
                     preConfirm: () => {
                         return [
                             document.getElementById('swal-input1').value,
@@ -1100,7 +1158,7 @@
                         icon: 'error',
                         title: 'ข้อมูลซ้ำซ้อน',
                         text: `ระดับชั้น ${level}/${room} มีอยู่ในระบบแล้ว`,
-                        confirmButtonColor: '#1fb0ff'
+                        confirmButtonColor: '#E60050'
                     });
                     return;
                 }
@@ -1121,7 +1179,7 @@
                     text: `คุณต้องการลบห้อง "${className}" และข้อมูลนักเรียนทั้งหมดในห้องนี้ใช่หรือไม่?`,
                     icon: 'warning',
                     showCancelButton: true,
-                    confirmButtonColor: '#1fb0ff',
+                    confirmButtonColor: '#E60050',
                     cancelButtonColor: '#d33',
                     confirmButtonText: 'ยืนยันการลบ',
                     cancelButtonText: 'ยกเลิก'
@@ -1174,6 +1232,21 @@
                                 </div>
                                 <Icons.Back className="rotate-180" />
                             </button>
+
+                            {/* เพิ่มปุ่มเคลียร์แคชตรงนี้ */}
+                            <button onClick={handleClearCache} className="w-full bg-white p-6 rounded-[2rem] flex items-center justify-between shadow-sm border border-gray-100 active:scale-95 transition-transform">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-gray-100 text-gray-500 rounded-full flex items-center justify-center">
+                                        {/* ใช้ไอคอนที่มีอยู่แล้ว หากไม่ได้เพิ่ม Icons.Refresh */}
+                                        <i className="ri-refresh-line text-[22px]"></i>
+                                    </div>
+                                    <div className="text-left">
+                                        <div className="font-bold text-gray-800 text-lg">ล้างแคชระบบ</div>
+                                        <div className="text-xs text-gray-400 font-medium uppercase tracking-widest">Clear App Cache</div>
+                                    </div>
+                                </div>
+                                <Icons.Back className="rotate-180" />
+                            </button>
                         </div>
 
                         <div className="mt-14 flex flex-col items-center justify-center opacity-50 select-none">
@@ -1212,7 +1285,7 @@
                                 <div className="bg-white w-full rounded-[2.5rem] p-8 animate-in shadow-2xl">
                                     <h3 className="text-xl font-bold text-gray-800 mb-6">{editingClass ? 'แก้ไขข้อมูล' : 'เพิ่มห้องเรียน'}</h3>
                                     <form onSubmit={handleSaveClass} className="space-y-4">
-                                        <select name="level" defaultValue={editingClass?.level || 'อ.1'} className="w-full p-4 bg-gray-50 rounded-2xl font-bold">{['อ.1', 'อ.2', 'อ.3', 'ป.1', 'ป.2', 'ป.3', 'ป.4', 'ป.5', 'ป.6'].map(l => <option key={l} value={l}>{l}</option>)}</select>
+                                        <select name="level" defaultValue={editingClass?.level || 'ม.1'} className="w-full p-4 bg-gray-50 rounded-2xl font-bold">{['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'].map(l => <option key={l} value={l}>{l}</option>)}</select>
                                         <input name="room" type="number" placeholder="เลขห้อง" defaultValue={editingClass?.room || ''} className="w-full p-4 bg-gray-50 rounded-2xl font-bold" required />
                                         <input name="teacher" placeholder="ครูประจำชั้น" defaultValue={editingClass?.teacher || ''} className="w-full p-4 bg-gray-50 rounded-2xl font-bold" />
                                         <div className="flex gap-2 pt-6"><button type="button" onClick={()=>setShowClassModal(false)} className="flex-1 py-4 text-gray-400">ยกเลิก</button><button type="submit" className="flex-1 bg-primary text-white py-4 rounded-3xl font-bold">บันทึก</button></div>
@@ -1256,7 +1329,6 @@
 
             return null;
         };
-
         const StudentView = ({ classId, className, onBack }) => {
             const [students, setStudents] = useState([]);
             const [showModal, setShowModal] = useState(false);

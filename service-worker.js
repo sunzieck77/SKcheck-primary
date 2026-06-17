@@ -1,4 +1,4 @@
-const CACHE_NAME = 'skcheck-v2';
+const CACHE_NAME = 'skcheck-v4';
 
 const urlsToCache = [
   './',
